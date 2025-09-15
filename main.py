@@ -27,7 +27,7 @@ def send_final_file(file):
         end = f"{translate['price']} : {file.get('price')}"
     else:
         end = f"{translate['deposit']} : {file.get('deposit')}\n{translate['rent']} : {file.get('rent')}"
-    text = f"{translate['file kind']} : {translate[file['type']]}\n{translate['prop kind']} : {translate[file['property']]}\n{translate['rooms']} : {file['rooms']}\n{translate['floor']} : {file.get('floor')} \n{translate['elevator']} : {translate[file['elevator']]}\n{translate['parking']} : {translate[file['parking']]}\n{translate['storage']} : {translate[file['storage']]}\n{translate['area']} : {file['area']}\n{translate['year']} : {translate[file['year']]}\n{translate['title']} : {file['title']}\n{translate['explain']} : {file['explain']}\n{end}"
+    text = f"{translate['file kind']} : {translate[file['type']]}\n{translate['prop kind']} : {translate[file['property']]}\n{translate['rooms']} : {file['rooms']}\n{translate['floor']} : {file.get('floor')}\n{translate['elevator']} : {translate[file['elevator']]}\n{translate['parking']} : {translate[file['parking']]}\n{translate['storage']} : {translate[file['storage']]}\n{translate['area']} : {file['area']}\n{translate['year']} : {translate[file['year']]}\n{translate['title']} : {file['title']}\n{translate['explain']} : {file['explain']}\n{end}"
     return text 
 file_keys = ['type' , 'property' , 'floor' , 'rooms' , 'elevator' , 'parking' , 'storage' , 'explain' , 'title']
 translate = {'house':'مسکونی','office':'تجاری یا اداری','Yes':'دارد' , 'No':'ندارد' , 'sale': 'فروش' ,'price':'قیمت',
@@ -99,10 +99,10 @@ def make_markup_search(search):
         if prop_type == 'office':
             office = "تجاری یا اداری✅"
     markup.add(InlineKeyboardButton(text = house , callback_data='search house') , InlineKeyboardButton(text = office , callback_data='search office'))
-    meter = 'متراژ'
-    if search.get('area') !=None:
-        meter = f" متر {search['area']}"
-    markup.add(InlineKeyboardButton(text = meter  , callback_data="searcharea"))
+    
+    # if search.get('area') !=None:
+    #     meter = f" متر {search['area']}"
+    # markup.add(InlineKeyboardButton(text = meter  , callback_data="searcharea"))
     markup.add(InlineKeyboardButton(text = "تایید" , callback_data="search confirm"))
     return markup
 
@@ -200,22 +200,19 @@ def find_similar_files(search):
     print(search['type'] , search['property'])
     files = get_all_files(search['type'] , search['property'],'Y')
     close_files = []
-    if search['area'] == '500+':
-        search['area'] ='500-600'
+    
     print(files)
     for file in files:
         
         distance = haversine(search['long'],search['lat'],file['loc_long'],file['loc_lat'])
         if file['area'] == '500+':
             file['area'] ='500-600'
-        area_1 = (int(file['area'].split(sep = '-')[0])+int(file['area'].split(sep = '-')[1]))/2
-        area_2 = (int(search['area'].split(sep = '-')[0])+int(search['area'].split(sep = '-')[1]))/2
-        area_dif = abs(area_2-area_1)
-        if distance < 8 and area_dif<300:
+        
+       
+        if distance < 8 :
             file['distance'] = distance
-            file['area_dif'] = area_dif
             close_files.append(file)
-        print(sorted(close_files , key= lambda file : (file['distance'],file['area_dif'])))
+        print(sorted(close_files , key= lambda file : (file['distance'])))
         
        
         
@@ -241,7 +238,8 @@ def my_files(message):
     user_id = message.from_user.id
     id = find_id(user_id)
     files = find_files(id)
-    print(send_final_file(files[1]))
+    
+    print(files)
 
 @bot.message_handler(func= lambda message : message.text == '🔍 جست و جوی فایل')
 def start_search(message):
@@ -274,16 +272,16 @@ def search_type(call):
    
     searchs[user_id]['property'] = call.data.split()[-1]
     bot.edit_message_reply_markup(message_id=mid, chat_id=cid , reply_markup=make_markup_search(searchs[user_id]))
-@bot.callback_query_handler(func = lambda call : call.data == 'searcharea')
-def get_search_area(call):
-    user_id = call.from_user.id
-    cid = call.message.chat.id
-    mid = call.message.id
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text="زیر 100 متر" , callback_data="search area 0-100") , InlineKeyboardButton(text = "100-200 متر" , callback_data="search area 100-200"))
-    markup.add(InlineKeyboardButton(text="200-300 متر" , callback_data="search area 200-300") , InlineKeyboardButton(text = "300-400 متر" , callback_data="search area 300-400"))
-    markup.add(InlineKeyboardButton(text = "500 متر و بیشتر" , callback_data="search area 500+"))
-    bot.edit_message_reply_markup(chat_id=cid , message_id=mid , reply_markup=markup)
+# @bot.callback_query_handler(func = lambda call : call.data == 'searcharea')
+# def get_search_area(call):
+#     user_id = call.from_user.id
+#     cid = call.message.chat.id
+#     mid = call.message.id
+#     markup = InlineKeyboardMarkup()
+#     markup.add(InlineKeyboardButton(text="زیر 100 متر" , callback_data="search area 0-100") , InlineKeyboardButton(text = "100-200 متر" , callback_data="search area 100-200"))
+#     markup.add(InlineKeyboardButton(text="200-300 متر" , callback_data="search area 200-300") , InlineKeyboardButton(text = "300-400 متر" , callback_data="search area 300-400"))
+#     markup.add(InlineKeyboardButton(text = "500 متر و بیشتر" , callback_data="search area 500+"))
+#     bot.edit_message_reply_markup(chat_id=cid , message_id=mid , reply_markup=markup)
 @bot.callback_query_handler(func = lambda call : call.data.startswith('search area'))
 def area(call):
     user_id = call.from_user.id
@@ -296,7 +294,7 @@ def search_confirm(call):
     user_id = call.from_user.id
     cid = call.message.chat.id
     mid = call.message.id
-    keys = ['type','property' , 'area']
+    keys = ['type','property']
     for key in keys:
         if searchs[user_id].get(key) == None:
             bot.answer_callback_query(callback_query_id=call.id , text="لطفا تمام اطلاعات را تکمیل کنید" , show_alert=True)
@@ -315,6 +313,7 @@ def search_location(message):
     searchs[user_id]['long'] = long
     searchs[user_id]['lat'] = lat
     files = find_similar_files(searchs.get(user_id))
+    print(files)
     pass
 @bot.message_handler(func=lambda message: message.text == 'ثبت نام')
 def register(message):
@@ -558,7 +557,7 @@ def get_image(message):
     new_files[user_id]['images'].append(image)
     
     markup = create_file_markup(new_files[user_id])
-    
+    bot.delete_message(chat_id=cid , message_id=mid)
     edit_message_text(bot = bot , chat_id = cid , message_id = int(user_steps[user_id].split()[-1]) , text = 'اطلاعات زیر را تکمیل کنید' , reply_markup = markup)
     user_steps[user_id] = 'create first page'
    
@@ -605,8 +604,9 @@ def get_explain(message):
     
     edit_message_text(bot = bot , chat_id = cid , message_id = int(user_steps[user_id].split()[-1]) , text = 'اطلاعات زیر را تکمیل کنید' , reply_markup = markup)
     user_steps[user_id] = 'create first page'
-@bot.callback_query_handler(func = lambda call : call.data.startswith('edit image'))
+@bot.callback_query_handler(func = lambda call : call.data.startswith('edit image') or call.data.startswith('edit_image'))
 def edit_image(call):
+    
     cid = call.message.chat.id
     mid = call.message.id
     user_id = call.from_user.id
@@ -619,40 +619,39 @@ def edit_image(call):
         )
         return
     index = int(call.data.split()[-1])
+    print(index)
+    if index <0 or index>=len(new_files[user_id]['images']):
+        
+        return
+    
     edit_message_reply_markup(bot = bot,chat_id=cid , message_id=mid , reply_markup=None)
     user_steps[user_id] = f'edit image {mid}'
     markup = InlineKeyboardMarkup()
-   
-    
-    if index > 0 and index < len(new_files[user_id]['images'])-1:
-        markup.add(InlineKeyboardButton(text = 'قبلی' , callback_data=f"edit image b {index - 1}"),InlineKeyboardButton(text = 'بعدی' , callback_data=f"edit image {index + 1}"))
-    
-    elif index < len(new_files[user_id]['images'])-1 :
-        markup.add(InlineKeyboardButton(text = 'بعدی' , callback_data=f"edit image {index + 1}"))
-    elif index > 0 :
-        markup.add(InlineKeyboardButton(text = 'قبلی' , callback_data=f"edit image b {index - 1}"))
-    markup.add(InlineKeyboardButton(text = 'حذف این عکس' , callback_data= f'delete image {index}'))
-    markup.add(InlineKeyboardButton(text = 'صفحه قبل' , callback_data=f'back to first page {mid}'))
-    if index == 0 and call.data.split()[-2]!= 'b':
-        send_photo(bot = bot , chat_id=cid,photo = new_files[user_id]['images'][index] , reply_markup=markup)
-    else:
-        edit_message_media(bot = bot, message_id=call.message.id, chat_id=cid,media = InputMediaPhoto(new_files[user_id]['images'][index]) , reply_markup=markup)
+    markup.add(InlineKeyboardButton(text='قبلی' , callback_data=f"edit_image {index - 1}") , InlineKeyboardButton(text = "بعدی" , callback_data=f"edit_image {index + 1}"))
+    markup.add(InlineKeyboardButton(text = "حذف این عکس" , callback_data=f"delete image {index}"))
+    markup.add(InlineKeyboardButton(text = "صفحه تکمیل اطلاعات"  , callback_data= f'back to first page {mid}'))
+    if call.data.startswith('edit_image'):
+        bot.edit_message_media(chat_id=cid , message_id=mid , media=InputMediaPhoto(new_files[user_id]['images'][index] ), reply_markup=markup)
+        return
+    bot.send_photo( chat_id=cid,photo = new_files[user_id]['images'][index] , reply_markup=markup)
+    return
 @bot.callback_query_handler(func = lambda call : call.data.startswith('delete image'))
 def delete_image(call):
     cid = call.message.chat.id
     user_id = call.from_user.id
     mid = user_steps[user_id].split()[-1]
     index =  int(call.data.split()[-1])
-    if len(new_files[user_id]['images']) == 0 : 
+    if len(new_files[user_id]['images']==1):
         with open('noimage.png' , 'rb') as f:
             photo = f.read()
             markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton(text = 'صفحه قبل' , callback_data=f'back to first page {mid}'))
-            edit_message_media(bot = bot , chat_id=cid , message_id=call.message.id,media= InputMediaPhoto(photo) ,reply_markup= markup)
-        return
+            markup.add(InlineKeyboardButton(text = 'بازگشت به صفحه قبل' , callback_data=f'back to first page {mid}'))
+            bot.edit_message_media( chat_id=cid , message_id=mid,media= InputMediaPhoto(photo,caption="فاقد عکس دیگر") ,reply_markup= markup)
+            return
     markup = InlineKeyboardMarkup()
     if index >0:
         markup.add(InlineKeyboardButton(text = 'قبلی' , callback_data=f"edit image b {index - 1}"),InlineKeyboardButton(text = 'بعدی' , callback_data=f"edit image {index + 1}"))
+        bot.edit_message_media(chat_id=cid, message_id=mid)
     if index== 0 and index < len(new_files[user_id]['images']) -1:
         markup.add(InlineKeyboardButton(text = 'بعدی' , callback_data=f"edit image {index + 1}"))
     markup.add(InlineKeyboardButton(text = 'صفحه قبل' , callback_data=f'back to first page {mid}'))
@@ -757,7 +756,7 @@ def nex_image(call):
     if index == len(new_files[user_id]['images'])-1:
         bot.answer_callback_query(callback_query_id=call.id , text = 'این عکس آخرین عکس فایل شماست',show_alert=True)
     else:
-        bot.edit_message_media(chat_id=cid , message_id=mid,media=new_files[user_id]['images'][index+1])
+        bot.edit_message_media(chat_id=cid , message_id=mid,media=InputMediaPhoto( new_files[user_id]['images'][index+1]))
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton(text = 'ویرایش' , callback_data='first page'))
         markup.add(InlineKeyboardButton(text = "تایید" , callback_data= 'confirm'))
@@ -773,7 +772,7 @@ def pre_image(call):
     if index == 0:
         bot.answer_callback_query(callback_query_id=call.id , text = 'این عکس اولین عکس فایل شماست',show_alert=True)
     else:
-        bot.edit_message_media(chat_id=cid , message_id=mid,media=new_files[user_id]['images'][index-1])
+        bot.edit_message_media(chat_id=cid , message_id=mid,media=InputMediaPhoto(new_files[user_id]['images'][index-1]))
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton(text = 'ویرایش' , callback_data='first page'))
         markup.add(InlineKeyboardButton(text = "تایید" , callback_data= 'confirm'))
@@ -798,7 +797,7 @@ def add_file(message):
     file = new_files[user_id]
     user = search_user(f'{user_id}')
     try:
-        last_file_id = insert_to_files(user_id = user[0] , title = file['title'], storage = file['storage'],description = file['explain'] ,parking = file['parking'],elevator = file['elevator'] , floor = file['floor'] ,area = file['area'], rooms = file['rooms'] , price = file.get('price') , rent =  file.get('price')  , deposit = file.get('deposit') , file_type = file['type'] , property_type = file['property'], is_active = 'Y' , location_long = file['location_long'],location_lat = file['location_lat'])
+        last_file_id = insert_to_files(user_id = user[0] , title = file['title'], storage = file['storage'],description = file['explain'] ,year = file['year'],parking = file['parking'],elevator = file['elevator'] , floor = file['floor'] ,area = file['area'], rooms = file['rooms'] , price = file.get('price') , rent =  file.get('rent')  , deposit = file.get('deposit') , file_type = file['type'] , property_type = file['property'], is_active = 'Y' , location_long = file['location_long'],location_lat = file['location_lat'])
         images = file['images']
         for image in images:
             os.makedirs('images',exist_ok=True)
