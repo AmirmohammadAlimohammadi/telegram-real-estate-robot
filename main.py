@@ -311,7 +311,11 @@ def send_saved_files(message):
     user = search_user(user_id)
     id = user['user_id']
     saves = search_saves(id)
-    save = saves[0]
+    try:
+        save = saves[0]
+    except Exception as e:
+        bot.send_message(text = "شما هیچ فایل ذخیره شده ای ندارید" , chat_id=cid)
+        user_steps[user_id] = 'home'
     file_id = save['file_id']
     if len(saves)==0:
         bot.send_message(text = "شما هیچ فایل ذخیره شده ای ندارید" , chat_id=cid)
@@ -321,14 +325,32 @@ def send_saved_files(message):
     image_path = os.path.join("images" , f"file {file_id}" , "image 1")
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton(text="عکس قبلی" , callback_data=f"save image {file_id} 0"), InlineKeyboardButton(text="عکس بعدی" , callback_data=f"save image {file_id} 2"))
+    markup.add(InlineKeyboardButton(text="حذف از فایل های ذخیره شده",callback_data=f"remove save {file_id} {id}"))
     markup.add(InlineKeyboardButton(text = "فایل ذخیره شده قبلی" , callback_data="send save 0"),InlineKeyboardButton(text = "فایل ذخیره شده بعدی" , callback_data="send save 1"))
+
     if os.path.exists(image_path):
         with open(image_path , 'rb') as f:
             image = f.read()
             
             bot.send_photo(chat_id=cid , photo=image , caption=text , parse_mode='markdown' , reply_markup=markup)
     else:
+        
         bot.send_message(chat_id=cid ,text=text , parse_mode='markdown' , reply_markup=markup)
+@bot.callback_query_handler(func = lambda call : call.data.startswith("remove save"))
+def remove_save(call):
+    id = int(call.data.split()[-1])
+    file_id = int(call.data.split()[-2])
+    ans = delete_save(id,file_id)
+    print(ans)
+    mid = call.message.id
+    cid = call.message.chat.id
+    
+    if ans == 'save removed':
+       bot.answer_callback_query(callback_query_id=call.id , text="فایل از فایل های ذخیره شده حذف شد") 
+       
+    else:
+        bot.answer_callback_query(callback_query_id=call.id , text="خطا در حذف فایل ذخیره شده")
+
 @bot.callback_query_handler(func = lambda call : call.data.startswith("send save"))
 def send_save(call):
     cid = call.message.chat.id
@@ -347,11 +369,13 @@ def send_save(call):
     bot.delete_message(chat_id=cid , message_id=mid)
     save = saves[index]
     file_id = save['file_id']
+    id = save['user_id']
     file = find_file(file_id)
     text = format_file_result(file)
     image_path = os.path.join("images" , f"file {file_id}" , "image 1")
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton(text="عکس قبلی" , callback_data=f"save image {file_id} 0"), InlineKeyboardButton(text="عکس بعدی" , callback_data=f"save image {file_id} 2"))
+    markup.add(InlineKeyboardButton(text="حذف از فایل های ذخیره شده",callback_data=f"remove save {file_id} {id}"))
     markup.add(InlineKeyboardButton(text = "فایل ذخیره شده قبلی" , callback_data=f"send save {index-1}"),InlineKeyboardButton(text = "فایل ذخیره شده بعدی" , callback_data=f"send save {index+1}"))
     if os.path.exists(image_path):
         with open(image_path , 'rb') as f:
@@ -359,14 +383,15 @@ def send_save(call):
             
             bot.send_photo(chat_id=cid , photo=image , caption=text , parse_mode='markdown' , reply_markup=markup)
     else:
+        print(image_path)
         bot.send_message(chat_id=cid ,text=text , parse_mode='markdown' , reply_markup=markup)
 @bot.callback_query_handler(func = lambda call : call.data.startswith('save image'))
 def edit_image(call):
     cid = call.message.chat.id
     user_id = call.from_user.id
     mid = call.message.id
-    image_index = call.data.split()[-1]
-    file_index = call.data.split()[-2]
+    image_index = int(call.data.split()[-1])
+    file_index = int(call.data.split()[-2])
     file = find_file(file_index)
     image_path = os.path.join("images" , f"file {file_index}" ,f"image {image_index}")
     markup = InlineKeyboardMarkup()
