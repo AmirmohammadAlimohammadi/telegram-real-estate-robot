@@ -68,7 +68,7 @@ def deactive_markups(user_id):
             continue
 from datetime import datetime
 
-def format_file_result(file: dict) -> str:
+def format_file_result(file: dict , phone) -> str:
     # Translate types
     file_type = file.get("file_type")
     prop_type = file.get("property_type")
@@ -108,7 +108,8 @@ def format_file_result(file: dict) -> str:
         f"🗓 *تاریخ ثبت*: {created}\n"
         f"📝 *{translate['title']}*: {file.get('title', '-')}\n\n"
         f"💬 *{translate['explain']}*: {file.get('description', '-')}\n\n"
-        f"{price_info}"
+        f"{price_info}\n\n"
+        f"||{phone}||"
     )
 
     return text
@@ -282,7 +283,9 @@ def send_welcome(message):
     cid = message.chat.id
     user_id = message.from_user.id
     user_steps[user_id] = 'start'
-    
+    args = message.text.split('?')
+    if len(args)>1:
+
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add('📃 ایجاد فایل جدید','🔍 جست‌وجوی فایل')
     markup.add('📂 فایل‌های من' , '💾 فایل‌های ذخیره‌شده')
@@ -304,24 +307,43 @@ def send_welcome(message):
         reply_markup=markup,
         parse_mode="Markdown"
     )
+
 @bot.message_handler(func=lambda message: message.text == '💾 فایل‌های ذخیره‌شده')
 def send_saved_files(message):
     cid = message.chat.id
     user_id = message.from_user.id
+    user = search_user(str(user_id)) 
+    if not user:
+        bot.send_message(
+            chat_id=cid,
+            text="⚠️ شما هنوز ثبت‌نام نکرده‌اید.\n\nلطفاً ابتدا از گزینه «ثبت نام» استفاده کنید.",
+            parse_mode="Markdown"
+        )
+        return
+    deactive_markups(user_id)
     user = search_user(user_id)
     id = user['user_id']
     saves = search_saves(id)
     try:
         save = saves[0]
+        file_id = save['file_id']
     except Exception as e:
+        print(f"error:{e}")
+        print(saves)
         bot.send_message(text = "شما هیچ فایل ذخیره شده ای ندارید" , chat_id=cid)
         user_steps[user_id] = 'home'
-    file_id = save['file_id']
+        return
+
+    
+
     if len(saves)==0:
         bot.send_message(text = "شما هیچ فایل ذخیره شده ای ندارید" , chat_id=cid)
         return
     file = find_file(file_id)
-    text = format_file_result(file)
+    id = file['user_id']
+    user= find_user(id)
+    phone = user['phone']
+    text = format_file_result(file , phone)
     image_path = os.path.join("images" , f"file {file_id}" , "image 1")
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton(text="عکس قبلی" , callback_data=f"save image {file_id} 0"), InlineKeyboardButton(text="عکس بعدی" , callback_data=f"save image {file_id} 2"))
@@ -332,10 +354,14 @@ def send_saved_files(message):
         with open(image_path , 'rb') as f:
             image = f.read()
             
-            bot.send_photo(chat_id=cid , photo=image , caption=text , parse_mode='markdown' , reply_markup=markup)
+            bot.send_photo(chat_id=cid , photo=image , caption=text , parse_mode='MarkdownV2' , reply_markup=markup)
     else:
         
-        bot.send_message(chat_id=cid ,text=text , parse_mode='markdown' , reply_markup=markup)
+        image_path = os.path.join('images' , 'no image.png')
+        with open(image_path , 'rb') as f:
+            image = f.read()
+            
+            bot.send_photo(chat_id=cid , photo=image , caption=text , parse_mode='markdown' , reply_markup=markup)
 @bot.callback_query_handler(func = lambda call : call.data.startswith("remove save"))
 def remove_save(call):
     id = int(call.data.split()[-1])
@@ -371,7 +397,9 @@ def send_save(call):
     file_id = save['file_id']
     id = save['user_id']
     file = find_file(file_id)
-    text = format_file_result(file)
+    user = find_user(id)
+    phone = user['phone']
+    text = format_file_result(file,phone)
     image_path = os.path.join("images" , f"file {file_id}" , "image 1")
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton(text="عکس قبلی" , callback_data=f"save image {file_id} 0"), InlineKeyboardButton(text="عکس بعدی" , callback_data=f"save image {file_id} 2"))
@@ -381,10 +409,14 @@ def send_save(call):
         with open(image_path , 'rb') as f:
             image = f.read()
             
-            bot.send_photo(chat_id=cid , photo=image , caption=text , parse_mode='markdown' , reply_markup=markup)
+            bot.send_photo(chat_id=cid , photo=image , caption=text , parse_mode='MarkdownV2' , reply_markup=markup)
     else:
-        print(image_path)
-        bot.send_message(chat_id=cid ,text=text , parse_mode='markdown' , reply_markup=markup)
+        image_path =  os.path.join('images' , 'no image.png')
+        with open(image_path , 'rb') as f:
+            image = f.read()
+            
+            bot.send_photo(chat_id=cid , photo=image , caption=text , parse_mode='markdown' , reply_markup=markup)
+        
 @bot.callback_query_handler(func = lambda call : call.data.startswith('save image'))
 def edit_image(call):
     cid = call.message.chat.id
@@ -400,7 +432,11 @@ def edit_image(call):
     if os.path.exists(image_path):
         with open(image_path , 'rb') as f:
             image = f.read()
-            bot.edit_message_media(media=image , caption = format_file_result(file) , reply_markup=markup)
+            id = file['user_id']
+            user= find_user(id)
+            phone = user['phone']
+
+            bot.edit_message_media(media=image , caption = format_file_result(file,phone) , reply_markup=markup)
     elif file_index<=0:
         bot.answer_callback_query(text = "این اولین عکس فایل می باشد" , callback_query_id=call.id)
         return
@@ -464,6 +500,14 @@ def go_home(message):
 def my_files(message):
     cid = message.chat.id
     user_id = message.from_user.id
+    user = search_user(str(user_id)) 
+    if not user:
+        bot.send_message(
+            chat_id=cid,
+            text="⚠️ شما هنوز ثبت‌نام نکرده‌اید.\n\nلطفاً ابتدا از گزینه «ثبت نام» استفاده کنید.",
+            parse_mode="Markdown"
+        )
+        return
     id = find_id(user_id)
     deactive_markups(user_id)
     files = find_files(id)
@@ -483,8 +527,13 @@ def my_files(message):
         with open(image_path, "rb") as f:
             image = f.read()
             message = bot.send_photo(chat_id=cid , caption =text , photo=(image) , parse_mode='markdown' , reply_markup=markup)
+            
     else:
-        message = bot.send_message(chat_id=cid , text =text , parse_mode='markdown' , reply_markup=markup)
+        image_path = os.path.join("images","no image.png")
+        with open(image_path, "rb") as f:
+            image = f.read()
+            message = bot.send_photo(chat_id=cid , caption =text , photo=(image) , parse_mode='markdown' , reply_markup=markup)
+            
     register_markups(message_id=message.id , chat_id=cid , user_id=user_id , markup=markup)
     return
 @bot.callback_query_handler(func = lambda call : call.data.startswith("my files"))
@@ -516,7 +565,10 @@ def my_files(call):
             message = bot.send_photo(chat_id=cid , caption =text , photo=(image) , parse_mode='markdown' , reply_markup=markup)
             register_markups(message_id=message.id , chat_id=cid , user_id=user_id , markup=markup)
     else:
-        message = bot.send_message(chat_id=cid , text =text , parse_mode='markdown' , reply_markup=markup)
+        image_path = os.path.join("images","no image.png")
+        with open(image_path, "rb") as f:
+            image = f.read()
+            message = bot.send_photo(chat_id=cid , caption =text , photo=(image) , parse_mode='markdown' , reply_markup=markup)
         register_markups(message_id=message.id , chat_id=cid , user_id=user_id , markup=markup)
 @bot.callback_query_handler(func = lambda call : call.data.startswith('open -m image'))
 def edit_image(call):
@@ -655,8 +707,14 @@ def search_location(message):
     if len(files) == 0:
         bot.send_message(text = "متاسفانه فایلی مشابه درخواست شما در محدوده تعیین شده یافت نشد" , chat_id=cid)
         return
+    i =  0
     for file in files:
-        text = format_file_result(file)
+        if i ==10:
+            return
+        id = file['user_id']
+        user = find_user(id)
+        phone = user['phone']
+        text = format_file_result(file , phone)
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton(text = "ذخیره این فایل" , callback_data=f"save file {file['file_id']}") )
         markup.add(InlineKeyboardButton(text = "عکس قبلی" , callback_data=f"open image {file['file_id']} 0"),InlineKeyboardButton(text = "عکس بعدی" , callback_data=f"open image {file['file_id']} 2"))
@@ -664,12 +722,16 @@ def search_location(message):
         if os.path.exists(image_path):
             with open(image_path, "rb") as f:
                 image = f.read()
-                message = bot.send_photo(caption=text  , reply_markup=markup , photo=image , chat_id=cid , parse_mode='markdown')
+                message = bot.send_photo(caption=text  , reply_markup=markup , photo=image , chat_id=cid , parse_mode='MarkdownV2')
                 register_markups(message_id=message.id, chat_id=cid , user_id=user_id , markup=markup)
         else:
-            message = bot.send_message(text=text  , reply_markup=markup , chat_id=cid , parse_mode='markdown')
-            register_markups(message_id=message.id, chat_id=cid , user_id=user_id , markup=markup)   
+           image_path = os.path.join("images" , 'no image.png')
+           with open(image_path, "rb") as f:
+                image = f.read()
+                message = bot.send_photo(caption=text  , reply_markup=markup , photo=image , chat_id=cid , parse_mode='markdown')
+                register_markups(message_id=message.id, chat_id=cid , user_id=user_id , markup=markup)
         bot.send_location(chat_id=cid ,longitude=file['loc_long'] , latitude=file['loc_lat'])
+        i+=1
 @bot.callback_query_handler(func = lambda call : call.data.startswith('save file'))
 def add_to_saves(call):
     user_id = call.from_user.id
@@ -700,12 +762,15 @@ def edit_image(call):
     markup.add(InlineKeyboardButton(text = "ذخیره این فایل" , callback_data=f"save file {file_id}") )
     markup.add(InlineKeyboardButton(text = "عکس قبلی" , callback_data=f"open image {file_id} {index -1}"),InlineKeyboardButton(text = "عکس بعدی" , callback_data=f"open image {file_id} {index+1}"))
     file  = find_file(file_id)
-    text = format_file_result(file)
+    id = file['user_id']
+    user = find_user(id)
+    phone = user['phone']
+    text = format_file_result(file,phone)
     try :
         image_path = os.path.join("images", f"file_{file_id}_images", f"image_{index}.jpg")
         with open(image_path, "rb") as f:
             image = f.read()
-            bot.edit_message_media(message_id=mid , chat_id=cid , media=InputMediaPhoto(image,caption=text , parse_mode='markdown' ), reply_markup=markup)
+            bot.edit_message_media(message_id=mid , chat_id=cid , media=InputMediaPhoto(image,caption=text , parse_mode='MarkdownV2' ), reply_markup=markup)
             user_id = call.from_user.id
             register_markups(message_id=mid, chat_id=cid , user_id=user_id , markup=markup)
             return
@@ -1064,9 +1129,11 @@ def edit_image(call):
         )
         return
     index = int(call.data.split()[-1])
-    
-    if index <0 or index>=len(new_files[user_id]['images']):
-        
+    if index <0:
+        bot.answer_callback_query(text="این اولین فایل شماست" , callback_query_id=call.id )
+        return
+    if index>=len(new_files[user_id]['images']):
+        bot.answer_callback_query(text="این آخرین فایل شماست" , callback_query_id=call.id )
         return
     
     bot.edit_message_reply_markup(chat_id=cid , message_id=mid , reply_markup=None)
@@ -1296,14 +1363,17 @@ def send_file_to_channel(call):
     file_id = int(call.data.split()[-1])
     image_path = os.path.join("images", f"file {file_id} images\image 1")
     file = find_file(file_id)
-    text = format_file_result(file)
+    id = file['user_id']
+    user = find_user(id)
+    phone = user['phone']
+    text = format_file_result(file,phone)
     image_path = os.path.join("images", f"file_{file_id}_images", "image_1.jpg")
     with open(image_path, "rb") as f:
         image = f.read()
         markup = InlineKeyboardMarkup()
         url = rf"https://t.me/{bot_username}?start=file_{file_id}"
-        markup.add(InlineKeyboardButton(text = "مشاهده فایل و شماره تماس صاحب ملک" , url=url))
-        bot.send_photo(chat_id=channel_user ,photo=image , caption=text , parse_mode='markdown' , reply_markup=markup )
+        markup.add(InlineKeyboardButton(text = "مشاهده فایل های بیشتر و استفاده از خدمات در ربات" , url=url))
+        bot.send_photo(chat_id=channel_user ,photo=image , caption=text , parse_mode='MarkdownV2' , reply_markup=markup )
         bot.answer_callback_query(text = "فایل شما روی کانال قرار گرفت" , callback_query_id=call.id)
         return
 
